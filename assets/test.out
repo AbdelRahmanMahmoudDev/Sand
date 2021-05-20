@@ -3,6 +3,33 @@
 #include <cmath>
 
 /*
+Pitch is the amount of pixels needed to step through to get to the next row
+It is equal to the width of the bitmap multiplied by the amount of bytes per pixel (for RGBA, 4 bytes)
+*/
+internal void Render(GameBackBuffer* BackBuffer, i32 BlueOffset, i32 GreenOffset)
+{
+	//i32 Width = BackBuffer->BitmapWidth;
+
+	
+	//i32 BackBuffer->Pitch = Width * BackBuffer->BytesPerPixel;
+
+	u8* Row = (u8*)BackBuffer->BitmapMemory;
+
+	for(i32 Y = 0; Y < BackBuffer->BitmapHeight; ++Y)
+	{
+		u32* Pixel = (u32*)Row;
+		for(i32 X = 0; X < BackBuffer->BitmapWidth; ++X)
+		{
+			u8 Blue = (u8)(X + BlueOffset);
+			u8 Green = (u8)(Y + GreenOffset);
+
+			*Pixel++ = ((Green << 8) | Blue); 
+		}
+		Row += BackBuffer->Pitch;
+	}
+}
+
+/*
 The game layer is currently only responsible for filling the sound buffer
 Sound play and update is managed by the OS currently
 */
@@ -38,7 +65,8 @@ extern "C" GAME_UPDATE(GameUpdate)
 		#endif
 
 		//Initialize state
-		State->green = 255;
+		State->BlueOffset = 0;
+		State->GreenOffset = 0;
 		Memory->IsInitialized = true;
 	}
 
@@ -55,18 +83,22 @@ extern "C" GAME_UPDATE(GameUpdate)
 			//Digital processing
 			if(Controller0->DPadUp.EndedPress)
 			{
+				--State->GreenOffset;
 			}
 
 			else if(Controller0->DPadLeft.EndedPress)
 			{
+				--State->BlueOffset;
 			}
 
 			else if(Controller0->DPadRight.EndedPress)
 			{
+				++State->BlueOffset;
 			}
 
 			else if(Controller0->DPadDown.EndedPress)
 			{
+				++State->GreenOffset;
 			}
 }
 	}
@@ -76,6 +108,11 @@ extern "C" GAME_UPDATE(GameUpdate)
 		GameGenerateAudio(SoundOutput);
 		SoundOutput->IsBufferFilled = true;
 	}
+
+	//Graphics
+	Render(BackBuffer, State->BlueOffset, State->GreenOffset);
+	//++State->BlueOffset;
+	//++State->GreenOffset;
 #if 0
 
 	OpenGLRendererState RendererState = {};

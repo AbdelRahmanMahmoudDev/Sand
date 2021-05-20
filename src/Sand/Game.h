@@ -1,6 +1,15 @@
 #pragma once
 #include "Core.h"
 
+struct GameBackBuffer
+{
+	void* BitmapMemory;
+	i32 BitmapWidth;
+	i32 BitmapHeight;
+	i32 BytesPerPixel;
+	i32 Pitch;
+};
+
 struct GameSoundOutput
 {
 	u64 SoundBufferSize;
@@ -120,7 +129,8 @@ struct GameMemory
 //for now, this is a dummy structure that saves state that persists between frames
 struct GameState
 {
-	i32 green;
+	i32 BlueOffset;
+	i32 GreenOffset;
 };
 
 
@@ -136,6 +146,6 @@ struct OpenGLRendererState
 typedef GAME_GENERATE_AUDIO(game_generate_audio);
 GAME_GENERATE_AUDIO(GameGenerateAudioStub) {}
 
-#define GAME_UPDATE(name) void name(GameMemory* Memory, GameInput* Input, GameSoundOutput* SoundOutput)
+#define GAME_UPDATE(name) void name(GameMemory* Memory, GameBackBuffer* BackBuffer, GameInput* Input, GameSoundOutput* SoundOutput)
 typedef GAME_UPDATE(game_update);
 GAME_UPDATE(GameUpdateStub) {}

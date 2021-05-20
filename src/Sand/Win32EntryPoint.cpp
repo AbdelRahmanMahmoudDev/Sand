@@ -26,7 +26,21 @@ struct Win32SoundOutput
 
 struct Win32BackBuffer
 {
+	void* BitmapMemory;
+	BITMAPINFO BitmapInfo;
+	HBITMAP BitmapHandle;
+	i32 BitmapWidth;
+	i32 BitmapHeight;
+	i32 BytesPerPixel;
+	i32 Pitch;
+};
 
+Win32BackBuffer GlobalBackBuffer = {};
+
+struct Win32WindowDimensions
+{
+	i32 Width;
+	i32 Height;
 };
 
 global b32 Win32IsRunning;
@@ -38,16 +52,8 @@ global b32 Win32IsKeyDown;
 global HGLRC OpenGLRenderContext;
 global LARGE_INTEGER PerfFrequency;
 
-global void* BitmapMemory;
-global BITMAPINFO BitmapInfo;
-global HBITMAP BitmapHandle;
-global i32 BitmapWidth;
-global i32 BitmapHeight;
-global i32 BytesPerPixel;
-
 typedef HGLRC WINAPI wglCreateContextAttribsARBPtr(HDC hdc, HGLRC hShareContext, const int* attribList);
 wglCreateContextAttribsARBPtr* wglCreateContextAttribsARB;
-
 
 typedef BOOL WINAPI wglChoosePixelFormatARBPtr(HDC hdc, const int* piAttribIList, const FLOAT* pfAttribFList, UINT nMaxFormats, int* piFormats, UINT* mNumFormats);
 wglChoosePixelFormatARBPtr* wglChoosePixelFormatARB;
@@ -491,6 +497,9 @@ struct Win32GameCode
 	b32 IsDLLValid;
 };
 
+/*
+Copy dll to write to it while original one is locked
+*/
 internal Win32GameCode Win32LoadGameDLL()
 {
 	Win32GameCode Result = {};
@@ -531,65 +540,51 @@ internal void Win32UnloadGameDLL(Win32GameCode* GameCode)
 	GameCode->GameGenerateAudio = GameGenerateAudioStub;
 }
 
-internal void Render(i32 BlueOffset, i32 GreenOffset)
+Win32WindowDimensions Win32GetWindowDimensions(HWND handle)
 {
-	i32 Width = BitmapWidth;
-
-	BytesPerPixel = 4;
-	i32 Pitch = Width * BytesPerPixel;
-
-	u8* Row = (u8*)BitmapMemory;
-
-	for(i32 Y = 0; Y < BitmapHeight; ++Y)
-	{
-		u32* Pixel = (u32*)Row;
-		for(i32 X = 0; X < BitmapWidth; ++X)
-		{
-			u8 Blue = (u8)(X + BlueOffset);
-			u8 Green = (u8)(Y + GreenOffset);
-
-			*Pixel++ = ((Green << 8) | Blue); 
-		}
-		Row += Pitch;
-	}
+	Win32WindowDimensions Result = {};
+	RECT ClientRect;
+    GetClientRect(handle, &ClientRect);
+    Result.Width = ClientRect.right - ClientRect.left;
+    Result.Height = ClientRect.bottom - ClientRect.top;
+	return Result;
 }
 
 /*
 Create or resize device-independent bitmap
 */
-internal void Win32ResizeDIBSection(i32 width, i32 height)
+internal void Win32ResizeDIBSection(Win32BackBuffer* BackBuffer, i32 width, i32 height)
 {
-	if(BitmapMemory)
+	if(BackBuffer->BitmapMemory)
 	{
-		VirtualFree(BitmapMemory, 0, MEM_RELEASE);
+		VirtualFree(BackBuffer->BitmapMemory, 0, MEM_RELEASE);
 	}
 
-	BitmapWidth = width;
-	BitmapHeight = height;
+	BackBuffer->BitmapWidth = width;
+	BackBuffer->BitmapHeight = height;
 
-	BitmapInfo.bmiHeader.biSize = sizeof(BitmapInfo.bmiHeader);
-	BitmapInfo.bmiHeader.biWidth = BitmapWidth;
-	BitmapInfo.bmiHeader.biHeight = -BitmapHeight;
-	BitmapInfo.bmiHeader.biPlanes = 1;
-	BitmapInfo.bmiHeader.biBitCount = 32;
-	BitmapInfo.bmiHeader.biCompression = BI_RGB;
+	BackBuffer->BitmapInfo.bmiHeader.biSize = sizeof(BackBuffer->BitmapInfo.bmiHeader);
+	BackBuffer->BitmapInfo.bmiHeader.biWidth = BackBuffer->BitmapWidth;
+	BackBuffer->BitmapInfo.bmiHeader.biHeight = -BackBuffer->BitmapHeight;
+	BackBuffer->BitmapInfo.bmiHeader.biPlanes = 1;
+	BackBuffer->BitmapInfo.bmiHeader.biBitCount = 32;
+	BackBuffer->BitmapInfo.bmiHeader.biCompression = BI_RGB;
 
-	BytesPerPixel = 4;
-	i32 BitmapMemorySize = (BitmapWidth * BitmapHeight) * BytesPerPixel;
+	BackBuffer->BytesPerPixel = 4;
+	i32 BitmapMemorySize = BackBuffer->BytesPerPixel *  BackBuffer->BitmapWidth * BackBuffer->BitmapHeight;
+	BackBuffer->Pitch = BackBuffer->BitmapWidth * BackBuffer->BytesPerPixel;
 
-	BitmapMemory = VirtualAlloc(0, BitmapMemorySize, MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE);
+	BackBuffer->BitmapMemory = VirtualAlloc(0, BitmapMemorySize, MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE);
 }
 
 //update device-independent bitmap
-internal void Win32UpdateWindow(HDC DeviceContext, RECT* ClientRect)
+internal void Win32UpdateWindow(Win32BackBuffer* BackBuffer, HDC DeviceContext, i32 width, i32 height)
 {
-	i32 ClientWidth = ClientRect->right - ClientRect->left;
-    i32 ClientHeight = ClientRect->bottom - ClientRect->top;
     StretchDIBits(DeviceContext,
-                  0, 0, BitmapWidth, BitmapHeight,
-                  0, 0, ClientWidth, ClientHeight,
-                  BitmapMemory,
-                  &BitmapInfo,
+                  0, 0, width, height,
+                  0, 0, BackBuffer->BitmapWidth, BackBuffer->BitmapHeight,
+                  BackBuffer->BitmapMemory,
+                  &BackBuffer->BitmapInfo,
                   DIB_RGB_COLORS, SRCCOPY);
 }
 
@@ -601,20 +596,15 @@ LRESULT CALLBACK WindowsCallBack(HWND handle, UINT msg, WPARAM wParam, LPARAM lP
 	{	
 	case WM_SIZE:
 	{
-        RECT ClientRect;
-        GetClientRect(handle, &ClientRect);
-        int Width = ClientRect.right - ClientRect.left;
-        int Height = ClientRect.bottom - ClientRect.top;
-        Win32ResizeDIBSection(Width, Height);
+
 	}break;
 
 	case WM_PAINT:
 	{
             PAINTSTRUCT Paint;
             HDC DeviceContext = BeginPaint(handle, &Paint);
-            RECT ClientRect;
-            GetClientRect(handle, &ClientRect);
-            Win32UpdateWindow(DeviceContext, &ClientRect);
+			Win32WindowDimensions Dimensions = Win32GetWindowDimensions(handle);
+            Win32UpdateWindow(&GlobalBackBuffer, DeviceContext, Dimensions.Width, Dimensions.Height);
             EndPaint(handle, &Paint);
 	}break;	
 
@@ -647,7 +637,7 @@ int CALLBACK WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
 	u32 GameRefreshRate = MonitorRefreshRate; //Try to target monitor refresh rate (30 frames at minimum)
 	f32 TargetSecondsPerFrame = 1.0f / GameRefreshRate;
 
-
+    Win32ResizeDIBSection(&GlobalBackBuffer, 1280, 720);
 	Win32InitXInput();
     
 	Win32SoundOutput Win32Sound = {};
@@ -696,6 +686,14 @@ int CALLBACK WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
 		Memory.TransientStorage = ((u8*)Memory.PermanentStorage + Memory.PermanentStorageSize);
 		Assert(Memory.PermanentStorage && Memory.TransientStorage);
 
+		//Graphics
+		GameBackBuffer GameRenderBuffer = {};
+		GameRenderBuffer.BitmapMemory = GlobalBackBuffer.BitmapMemory;
+		GameRenderBuffer.BitmapWidth = GlobalBackBuffer.BitmapWidth;
+		GameRenderBuffer.BitmapHeight = GlobalBackBuffer.BitmapHeight;
+		GameRenderBuffer.BytesPerPixel = GlobalBackBuffer.BytesPerPixel;
+		GameRenderBuffer.Pitch = GlobalBackBuffer.Pitch;
+
 		//Init audio
 		Win32Sound.SoundData = (u8*)VirtualAlloc(0, Win32Sound.SoundBufferSize, MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE);
 		Assert(Win32Sound.SoundData);
@@ -726,9 +724,6 @@ int CALLBACK WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
 
 		Win32GameCode GameCode = Win32LoadGameDLL();
 		u32 GameLoadCounter = 0;
-
-		i32 XOffset = 0;
-		i32 YOffset = 0;
 
 		i64 LastCycleCount = __rdtsc();
 		LARGE_INTEGER LastCounter = Win32GetWallClock();
@@ -829,18 +824,13 @@ int CALLBACK WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
 				}
 			}
 
-			Render(XOffset, YOffset);
+			GameCode.GameUpdate(&Memory, &GameRenderBuffer, NewInput, &GameAudio);
 
 			HDC DeviceContext = GetDC(WindowHandle);
-			RECT ClientRect;
-			GetClientRect(WindowHandle, &ClientRect);
-			Win32UpdateWindow(DeviceContext, &ClientRect);
+			Win32WindowDimensions Dimensions = Win32GetWindowDimensions(WindowHandle);
+			Win32UpdateWindow(&GlobalBackBuffer, DeviceContext, Dimensions.Width, Dimensions.Height);
 			ReleaseDC(WindowHandle, DeviceContext);
 
-			++XOffset;
-			++YOffset;
-
-			GameCode.GameUpdate(&Memory, NewInput, &GameAudio);
 
 			//Swap input states to always get latest state
 			GameInput* temp = NewInput;
