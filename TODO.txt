@@ -1,0 +1,3 @@
+Graphics:
+-Get and set window dimensions(win32)
+-Use hardware acceleration
