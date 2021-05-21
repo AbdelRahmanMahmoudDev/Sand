@@ -111,8 +111,6 @@ extern "C" GAME_UPDATE(GameUpdate)
 
 	//Graphics
 	Render(BackBuffer, State->BlueOffset, State->GreenOffset);
-	//++State->BlueOffset;
-	//++State->GreenOffset;
 #if 0
 
 	OpenGLRendererState RendererState = {};
@@ -128,15 +126,3 @@ extern "C" GAME_UPDATE(GameUpdate)
     //Rendering
 #endif
 }
-
-#if SAND_WIN32
-#include "Windows.h"
-BOOL WINAPI DllMain(
-    HINSTANCE hinstDLL,  // handle to DLL module
-    DWORD fdwReason,     // reason for calling function
-    LPVOID lpReserved )  // reserved
-{
-	return TRUE;
-}
-
-#endif

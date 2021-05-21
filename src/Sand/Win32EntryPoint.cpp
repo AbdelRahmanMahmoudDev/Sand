@@ -10,39 +10,9 @@
 #include <xaudio2.h>
 #include <Xinput.h>
 
-struct Win32SoundOutput
-{
-	Microsoft::WRL::ComPtr<IXAudio2> XAudioObject;
-	IXAudio2MasteringVoice* Win32MasterVoice;
-	IXAudio2SourceVoice* Win32SourceVoice;
-    XAUDIO2_BUFFER SoundBuffer;
-	u64 SoundBufferSize;
-	u16 NumberOfChannels;
-	u32 SamplesPerSecond;
-	u32 BytesPerSample;
-	u16 BitsPerSample;
-	u8* SoundData;
-};
+#include "Win32EntryPoint.h"
 
-struct Win32BackBuffer
-{
-	void* BitmapMemory;
-	BITMAPINFO BitmapInfo;
-	HBITMAP BitmapHandle;
-	i32 BitmapWidth;
-	i32 BitmapHeight;
-	i32 BytesPerPixel;
-	i32 Pitch;
-};
-
-Win32BackBuffer GlobalBackBuffer = {};
-
-struct Win32WindowDimensions
-{
-	i32 Width;
-	i32 Height;
-};
-
+global Win32BackBuffer GlobalBackBuffer;
 global b32 Win32IsRunning;
 global u32 Win32KeyCode;
 global b32 Win32WasAltKeyDown;
@@ -396,7 +366,67 @@ DEBUG_PLATFORM_WRITE_ENTIRE_FILE(DebugPlatformWriteEntireFile)
 }
 #endif
 
-internal void Win32ProcessMessages(GameController* KeyboardController)
+internal void Win32BeginRecordingInput(Win32State* Win32_State, i32 InputRecordingIndex)
+{
+	Win32_State->InputRecordingIndex = InputRecordingIndex;
+
+	char* FileName = "GamePlayback.spb";
+	Win32_State->RecordingHandle = CreateFileA(FileName, GENERIC_WRITE, 0, 0, CREATE_ALWAYS, 0, 0);
+
+	DWORD BytesToWrite = (DWORD)Win32_State->TotalSize;
+	Assert(Win32_State->TotalSize == BytesToWrite); //This is due to down-cast
+	DWORD BytesWritten;
+	WriteFile(Win32_State->RecordingHandle, Win32_State->GameMemoryBlock, BytesToWrite, &BytesWritten, 0);
+}
+
+internal void Win32EndRecordingInput(Win32State* Win32_State)
+{
+	CloseHandle(Win32_State->RecordingHandle);
+	Win32_State->InputRecordingIndex = 0;
+}
+
+internal void Win32BeginInputPlayback(Win32State* Win32_State, i32 InputPlayingIndex)
+{
+	Win32_State->InputPlayingIndex = InputPlayingIndex;
+	
+	char* FileName = "GamePlayback.spb";
+	Win32_State->PlaybackHandle = CreateFileA(FileName, GENERIC_READ, FILE_SHARE_READ, 0, OPEN_EXISTING, 0, 0);
+
+	DWORD BytesToRead = (DWORD)Win32_State->TotalSize;
+	Assert(Win32_State->TotalSize == BytesToRead); //This is due to down-cast
+	DWORD BytesRead;
+	ReadFile(Win32_State->RecordingHandle, Win32_State->GameMemoryBlock, BytesToRead, &BytesRead, 0);
+}
+
+internal void Win32EndInputPlayback(Win32State* Win32_State)
+{
+	CloseHandle(Win32_State->PlaybackHandle);
+	Win32_State->InputPlayingIndex = 0;
+}
+
+internal void Win32RecordInput(Win32State* Win32_State, GameInput* NewInput)
+{
+	DWORD BytesWritten;
+	WriteFile(Win32_State->RecordingHandle, NewInput, sizeof(*NewInput), &BytesWritten, 0);
+}
+
+internal void Win32PlaybackInput(Win32State* Win32_State, GameInput* NewInput)
+{
+	DWORD BytesRead = 0;
+	if(ReadFile(Win32_State->PlaybackHandle, NewInput, sizeof(*NewInput), &BytesRead, 0))
+	{
+		if(BytesRead == 0)
+		{
+			//At end of stream, loop back to beginning
+			i32 PlayingIndex = Win32_State->InputPlayingIndex;
+			Win32EndInputPlayback(Win32_State);
+			Win32BeginInputPlayback(Win32_State, PlayingIndex);
+			ReadFile(Win32_State->PlaybackHandle, NewInput, sizeof(*NewInput), &BytesRead, 0);
+		}
+	}
+}
+
+internal void Win32ProcessMessages(Win32State* Win32_State, GameController* KeyboardController)
 {
 			//Input polling
 			MSG Message;
@@ -455,6 +485,24 @@ internal void Win32ProcessMessages(GameController* KeyboardController)
 								{
 									Win32ProcessKeyboardButton(&KeyboardController->DPadRight, Win32IsKeyDown);
 								}break;
+
+								#if SAND_INTERNAL
+								case 'L':
+								{
+									if(Win32IsKeyDown)
+									{
+										if(Win32_State->InputRecordingIndex == 0)
+										{
+											Win32BeginRecordingInput(Win32_State, 1);
+										}
+										else
+										{
+											Win32EndRecordingInput(Win32_State);
+											Win32BeginInputPlayback(Win32_State, 1);
+										}
+									}
+								}break;
+								#endif
 							}
 						}
 					}break;
@@ -492,20 +540,42 @@ internal f64 Win32GetSecondsElapsed(LARGE_INTEGER Start, LARGE_INTEGER End)
 struct Win32GameCode
 {
 	HMODULE GameLibrary;
+	FILETIME LastWriteTime;
 	game_generate_audio* GameGenerateAudio;
 	game_update*		 GameUpdate;
 	b32 IsDLLValid;
 };
 
+internal FILETIME Win32GetLastWriteTime(char* FileName)
+{
+	FILETIME Result = {};
+	WIN32_FIND_DATA FileData;
+	HANDLE FileHandle = FindFirstFileA(FileName, &FileData);
+	if(FileHandle != INVALID_HANDLE_VALUE)
+	{
+		Result = FileData.ftLastWriteTime;
+		FindClose(FileHandle);
+	}
+	else
+	{
+		FindClose(FileHandle);
+	}
+
+	return Result;
+}
+
 /*
 Copy dll to write to it while original one is locked
 */
-internal Win32GameCode Win32LoadGameDLL()
+internal Win32GameCode Win32LoadGameDLL(char* SourceDLL, char* TempDLL)
 {
 	Win32GameCode Result = {};
-	Result.GameLibrary = LoadLibraryA("Game.dll");
 
-	CopyFile("Game.dll", "Game_temp.dll", FALSE);
+	Result.LastWriteTime = Win32GetLastWriteTime(SourceDLL);
+
+	CopyFileA(SourceDLL, TempDLL, FALSE); 
+	Result.GameLibrary = LoadLibraryA(TempDLL);
+
 	if(Result.GameLibrary)
 	{
 		Result.GameGenerateAudio = (game_generate_audio*)GetProcAddress(Result.GameLibrary, "GameGenerateAudio");
@@ -594,11 +664,6 @@ LRESULT CALLBACK WindowsCallBack(HWND handle, UINT msg, WPARAM wParam, LPARAM lP
 
 	switch (msg)
 	{	
-	case WM_SIZE:
-	{
-
-	}break;
-
 	case WM_PAINT:
 	{
             PAINTSTRUCT Paint;
@@ -607,6 +672,18 @@ LRESULT CALLBACK WindowsCallBack(HWND handle, UINT msg, WPARAM wParam, LPARAM lP
             Win32UpdateWindow(&GlobalBackBuffer, DeviceContext, Dimensions.Width, Dimensions.Height);
             EndPaint(handle, &Paint);
 	}break;	
+
+	case WM_ACTIVATEAPP:
+	{
+		if(wParam == TRUE)
+		{
+			SetLayeredWindowAttributes(handle, RGB(0, 0, 0), 255, LWA_ALPHA);
+		}
+		else
+		{
+			SetLayeredWindowAttributes(handle, RGB(0, 0, 0), 64, LWA_ALPHA);
+		}
+	}break;
 
 	case WM_CLOSE:
 	{
@@ -627,6 +704,25 @@ LRESULT CALLBACK WindowsCallBack(HWND handle, UINT msg, WPARAM wParam, LPARAM lP
 	return result;
 }
 
+//quick and dirt concatenate strings
+internal void CatStrings(size_t SourceACount, char* SourceA,
+						 size_t SourceBCount, char* SourceB,
+						 size_t DestinationCount, char* Destination)
+{
+	for(i32 index = 0; index < SourceACount; ++index)
+	{
+		*Destination++ = *SourceA++;
+	}
+
+	for(i32 index = 0; index < SourceBCount; ++index)
+	{
+		*Destination++ = *SourceB++;
+	}
+
+	//Add null termination
+	*Destination++ = 0;
+}
+
 int CALLBACK WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow)
 {
 	QueryPerformanceFrequency(&PerfFrequency);
@@ -637,7 +733,30 @@ int CALLBACK WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
 	u32 GameRefreshRate = MonitorRefreshRate; //Try to target monitor refresh rate (30 frames at minimum)
 	f32 TargetSecondsPerFrame = 1.0f / GameRefreshRate;
 
-    Win32ResizeDIBSection(&GlobalBackBuffer, 1280, 720);
+	//Finding exe file path
+	char EXEFileName[MAX_PATH];
+	GetModuleFileNameA(NULL, EXEFileName, sizeof(EXEFileName));
+	char* OnePastLastSlash = EXEFileName;
+	for(char* Scan = EXEFileName; *Scan; ++Scan)
+	{
+		if(*Scan == '\\')
+		{
+			OnePastLastSlash = Scan + 1;
+		}
+	}
+
+	char SourceGameDLLFileName[] = "Game.dll";
+	char SourceGameDLLFullPath[MAX_PATH];
+	CatStrings(OnePastLastSlash - EXEFileName, EXEFileName,
+			   sizeof(SourceGameDLLFileName) - 1, SourceGameDLLFileName,
+			   sizeof(SourceGameDLLFullPath), SourceGameDLLFullPath);
+
+	char TempGameDLLFileName[] = "Game_temp.dll";
+	char TempGameDLLFullPath[MAX_PATH];
+	CatStrings(OnePastLastSlash - EXEFileName, EXEFileName,
+			   sizeof(TempGameDLLFileName) - 1, TempGameDLLFileName,
+			   sizeof(TempGameDLLFullPath), TempGameDLLFullPath);
+
 	Win32InitXInput();
     
 	Win32SoundOutput Win32Sound = {};
@@ -657,10 +776,11 @@ int CALLBACK WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
 	Window.lpszClassName = "MainWindow";
 	Window.hIconSm = LoadIconA(Window.hInstance, IDI_APPLICATION);
 
+    Win32ResizeDIBSection(&GlobalBackBuffer, 1280, 720);
 
 	RegisterClassExA(&Window);
 
-	HWND WindowHandle = CreateWindowExA(0, "MainWindow", "SandEngine: Platform Test App", WS_OVERLAPPEDWINDOW | WS_CLIPCHILDREN | WS_CLIPSIBLINGS,
+	HWND WindowHandle = CreateWindowExA(WS_EX_TOPMOST|WS_EX_LAYERED, "MainWindow", "SandEngine: Platform Test App", WS_OVERLAPPEDWINDOW | WS_CLIPCHILDREN | WS_CLIPSIBLINGS,
 		CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, NULL, NULL, hInstance, NULL);
 
 	ShowWindow(WindowHandle, nCmdShow);
@@ -674,15 +794,19 @@ int CALLBACK WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
 		LPVOID BaseAddress = 0;
 		#endif
 
+		Win32State Win32_State = {};
 		GameMemory Memory = {};
 		Memory.DebugPlatformFreeFileMemory = DebugPlatformFreeFileMemory;
 		Memory.DebugPlatformReadEntireFile = DebugPlatformReadEntireFile;
 		Memory.DebugPlatformWriteEntireFile = DebugPlatformWriteEntireFile;
 		Memory.PermanentStorageSize = MEGABYTES(64);
-		Memory.TransientStorageSize = GIGABYTES(4);
-		u64 TotalStorageSize = Memory.TransientStorageSize + Memory.PermanentStorageSize;
+		Memory.TransientStorageSize = GIGABYTES(1);
+		Win32_State.TotalSize = Memory.TransientStorageSize + Memory.PermanentStorageSize;
 
-		Memory.PermanentStorage = VirtualAlloc(BaseAddress, TotalStorageSize, MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE);
+
+
+		Win32_State.GameMemoryBlock = VirtualAlloc(BaseAddress, Win32_State.TotalSize, MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE);
+		Memory.PermanentStorage = Win32_State.GameMemoryBlock;
 		Memory.TransientStorage = ((u8*)Memory.PermanentStorage + Memory.PermanentStorageSize);
 		Assert(Memory.PermanentStorage && Memory.TransientStorage);
 
@@ -722,19 +846,18 @@ int CALLBACK WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
 #endif
 
 
-		Win32GameCode GameCode = Win32LoadGameDLL();
-		u32 GameLoadCounter = 0;
+		Win32GameCode GameCode = Win32LoadGameDLL(SourceGameDLLFullPath, TempGameDLLFullPath);
 
 		i64 LastCycleCount = __rdtsc();
 		LARGE_INTEGER LastCounter = Win32GetWallClock();
 		Win32IsRunning = true;
 		while (Win32IsRunning)
 		{
-			if(GameLoadCounter++ > 240)
+			FILETIME SourceDLLWriteTime = Win32GetLastWriteTime(SourceGameDLLFullPath);
+			if(CompareFileTime(&GameCode.LastWriteTime, &SourceDLLWriteTime) != 0)
 			{
 				Win32UnloadGameDLL(&GameCode);
-				GameCode = Win32LoadGameDLL();
-				GameLoadCounter = 0;
+				GameCode = Win32LoadGameDLL(SourceGameDLLFullPath, TempGameDLLFullPath);
 			}
 
 			GameController* OldKeyboardController = GetController(OldInput, 0);
@@ -748,7 +871,7 @@ int CALLBACK WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
 				NewKeyboardController->Buttons[ButtonIndex].EndedPress = OldKeyboardController->Buttons[ButtonIndex].EndedPress;
 			}
 
-			Win32ProcessMessages(NewKeyboardController);
+			Win32ProcessMessages(&Win32_State, NewKeyboardController);
 
 			//Gamepad input
 			u32 MaxControllerCount = XUSER_MAX_COUNT;
@@ -823,6 +946,18 @@ int CALLBACK WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
 					NewController->IsConnected = false;
 				}
 			}
+
+			//Debug looped playback
+			if(Win32_State.InputRecordingIndex)
+			{
+				Win32RecordInput(&Win32_State, NewInput);
+			}
+
+			if(Win32_State.InputPlayingIndex)
+			{
+				Win32PlaybackInput(&Win32_State, NewInput);
+			}
+
 
 			GameCode.GameUpdate(&Memory, &GameRenderBuffer, NewInput, &GameAudio);
 
