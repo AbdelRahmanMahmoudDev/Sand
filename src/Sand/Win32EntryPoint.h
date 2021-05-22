@@ -31,6 +31,7 @@ struct Win32WindowDimensions
 	i32 Height;
 };
 
+#define WIN32_MAX_DIR MAX_PATH
 struct Win32State
 {
     u64 TotalSize;
@@ -41,4 +42,7 @@ struct Win32State
 
     HANDLE PlaybackHandle;
     i32 InputPlayingIndex;    
+
+	char EXEFileName[WIN32_MAX_DIR];
+	char* OnePastLastSlash;
 };

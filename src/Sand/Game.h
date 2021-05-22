@@ -75,6 +75,8 @@ struct GameController
 
 struct GameInput
 {
+	GameButtonState MouseButtons[5];
+	i32 MouseX, MouseY, MouseZ;
 	//1 keyboard + 4 game pads
 	GameController Controllers[5];
 };
@@ -93,15 +95,20 @@ struct DebugPlatformReadFileResult
 	void* Content;
 };
 
+struct ThreadContext
+{
+	i32 Placeholder;
+};
+ 
 #ifdef SAND_INTERNAL
 
-#define DEBUG_PLATFORM_READ_ENTIRE_FILE(name) DebugPlatformReadFileResult name(char* FileName)
+#define DEBUG_PLATFORM_READ_ENTIRE_FILE(name) DebugPlatformReadFileResult name(ThreadContext* Thread, char* FileName)
 typedef DEBUG_PLATFORM_READ_ENTIRE_FILE(debug_platform_read_entire_file);
 
-#define DEBUG_PLATFORM_WRITE_ENTIRE_FILE(name) b32 name(char* FileName, void* WriteableMemory, u32 MemorySize)
+#define DEBUG_PLATFORM_WRITE_ENTIRE_FILE(name) b32 name(ThreadContext* Thread, char* FileName, void* WriteableMemory, u32 MemorySize)
 typedef DEBUG_PLATFORM_WRITE_ENTIRE_FILE(debug_platform_write_entire_file);
 
-#define DEBUG_PLATFORM_FREE_FILE_MEMORY(name) void name(void* FreeableMemory)
+#define DEBUG_PLATFORM_FREE_FILE_MEMORY(name) void name(ThreadContext* Thread, void* FreeableMemory)
 typedef DEBUG_PLATFORM_FREE_FILE_MEMORY(debug_platform_free_file_memory);
 
 #endif
@@ -142,10 +149,8 @@ struct OpenGLRendererState
 };
 
 
-#define GAME_GENERATE_AUDIO(name) void name(GameSoundOutput* SoundOutput)
+#define GAME_GENERATE_AUDIO(name) void name(ThreadContext* Thread, GameSoundOutput* SoundOutput)
 typedef GAME_GENERATE_AUDIO(game_generate_audio);
-GAME_GENERATE_AUDIO(GameGenerateAudioStub) {}
 
-#define GAME_UPDATE(name) void name(GameMemory* Memory, GameBackBuffer* BackBuffer, GameInput* Input, GameSoundOutput* SoundOutput)
+#define GAME_UPDATE(name) void name(ThreadContext* Thread, GameMemory* Memory, GameBackBuffer* BackBuffer, GameInput* Input, GameSoundOutput* SoundOutput)
 typedef GAME_UPDATE(game_update);
-GAME_UPDATE(GameUpdateStub) {}

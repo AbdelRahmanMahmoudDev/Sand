@@ -53,14 +53,17 @@ extern "C" GAME_UPDATE(GameUpdate)
 	GameState* State = (GameState*)Memory->PermanentStorage;
 	if(!Memory->IsInitialized)
 	{
+		//Placeholder thread thing
+		ThreadContext thread = {};
+
 		//File i/o
 		#ifdef SAND_INTERNAL
 		char* FileName = __FILE__;
-		DebugPlatformReadFileResult File = Memory->DebugPlatformReadEntireFile(FileName);
+		DebugPlatformReadFileResult File = Memory->DebugPlatformReadEntireFile(&thread, FileName);
 		if(File.Content)
 		{
-		Memory->DebugPlatformWriteEntireFile("test.out", File.Content, File.ContentSize);
-		Memory->DebugPlatformFreeFileMemory(File.Content);
+		Memory->DebugPlatformWriteEntireFile(&thread, "test.out", File.Content, File.ContentSize);
+		Memory->DebugPlatformFreeFileMemory(&thread, File.Content);
 		}
 		#endif
 
@@ -100,29 +103,21 @@ extern "C" GAME_UPDATE(GameUpdate)
 			{
 				++State->GreenOffset;
 			}
-}
+		}
+	}
+
+	if(Input->MouseButtons[0].EndedPress)
+	{
+		--State->BlueOffset;
 	}
 	//Audio
 	if(!SoundOutput->IsBufferFilled)
 	{
-		GameGenerateAudio(SoundOutput);
+		ThreadContext thread = {};
+		GameGenerateAudio(&thread, SoundOutput);
 		SoundOutput->IsBufferFilled = true;
 	}
 
 	//Graphics
 	Render(BackBuffer, State->BlueOffset, State->GreenOffset);
-#if 0
-
-	OpenGLRendererState RendererState = {};
-	if(!RendererState.IsRendererPrepared)
-	{
-		RendererState = OpenGLRendererInit();
-		RendererState.IsRendererPrepared = true;
-	}
-	
-	glUseProgram(RendererState.ShaderProgram);
-	glBindVertexArray(RendererState.VertexArrayHandle);
-	glDrawArrays(GL_TRIANGLES, 0, 3);
-    //Rendering
-#endif
 }
