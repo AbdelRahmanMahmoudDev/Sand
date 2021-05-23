@@ -1,6 +1,6 @@
 @echo off
 
-set CommonCompilerFlags=-DSAND_DEBUG=1 -DSAND_INTERNAL=1 -DSAND_WIN32=1 -Gm- -MTd -nologo -EHa- -GR- -Od -Oi -WX -W4 -wd4201 -wd4100 -FC -Z7 
+set CommonCompilerFlags=-DSAND_DEBUG=1 -DSAND_INTERNAL=1 -DSAND_WIN32=1 -Gm- -MTd -nologo -EHa- -GR- -Od -Oi -WX -W4 -wd4201 -wd4100 -wd4101 -wd4189 -FC -Z7 
 set CommonLinkerFlags= -incremental:no -opt:ref user32.lib Gdi32.lib Winmm.lib
 
 IF NOT EXIST build mkdir build

@@ -671,6 +671,7 @@ internal void Win32ResizeDIBSection(Win32BackBuffer* BackBuffer, i32 width, i32 
 	}
 
 	BackBuffer->BitmapWidth = width;
+	
 	BackBuffer->BitmapHeight = height;
 
 	BackBuffer->BitmapInfo.bmiHeader.biSize = sizeof(BackBuffer->BitmapInfo.bmiHeader);
@@ -870,6 +871,7 @@ int CALLBACK WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
 		GameInput Input[2] = {};
 		GameInput* OldInput = &Input[0];
 		GameInput* NewInput = &Input[1];
+		NewInput->TargetSecondsPerFrame = TargetSecondsPerFrame;
 
 #if 0
 		//Init graphics

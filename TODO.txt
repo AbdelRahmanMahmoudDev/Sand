@@ -1,3 +1,4 @@
 Graphics:
 -Get and set window dimensions(win32)
 -Use hardware acceleration
+-Study Casey's 4-slot looped live code editing thing

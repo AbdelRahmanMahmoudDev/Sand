@@ -75,6 +75,10 @@ struct GameController
 
 struct GameInput
 {
+	//timestep
+	f32 TargetSecondsPerFrame;
+
+	//debug mouse stuff
 	GameButtonState MouseButtons[5];
 	i32 MouseX, MouseY, MouseZ;
 	//1 keyboard + 4 game pads
