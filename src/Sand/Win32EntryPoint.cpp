@@ -681,11 +681,13 @@ internal void Win32ResizeDIBSection(Win32BackBuffer* BackBuffer, i32 width, i32 
 	BackBuffer->BitmapInfo.bmiHeader.biBitCount = 32;
 	BackBuffer->BitmapInfo.bmiHeader.biCompression = BI_RGB;
 
-	BackBuffer->BytesPerPixel = 4;
-	i32 BitmapMemorySize = BackBuffer->BytesPerPixel *  BackBuffer->BitmapWidth * BackBuffer->BitmapHeight;
-	BackBuffer->Pitch = BackBuffer->BitmapWidth * BackBuffer->BytesPerPixel;
+
+	i32 BytesPerPixel = 4;
+	BackBuffer->BytesPerPixel = BytesPerPixel;
+	i32 BitmapMemorySize = (BackBuffer->BytesPerPixel *  BackBuffer->BitmapWidth * BackBuffer->BitmapHeight);
 
 	BackBuffer->BitmapMemory = VirtualAlloc(0, BitmapMemorySize, MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE);
+	BackBuffer->Pitch = width * BackBuffer->BytesPerPixel;
 }
 
 //update device-independent bitmap
@@ -790,12 +792,12 @@ int CALLBACK WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
 	Window.lpszClassName = "MainWindow";
 	Window.hIconSm = LoadIconA(Window.hInstance, IDI_APPLICATION);
 
-    Win32ResizeDIBSection(&GlobalBackBuffer, 1280, 720);
+    Win32ResizeDIBSection(&GlobalBackBuffer, 960, 540);
 
 	RegisterClassExA(&Window);
 
 	HWND WindowHandle = CreateWindowExA(0, "MainWindow", "SandEngine: Platform Test App", WS_OVERLAPPEDWINDOW | WS_CLIPCHILDREN | WS_CLIPSIBLINGS,
-		CW_USEDEFAULT, CW_USEDEFAULT, 1280, 720, NULL, NULL, hInstance, NULL);
+		CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, NULL, NULL, hInstance, NULL);
 
 	ShowWindow(WindowHandle, nCmdShow);
 	UpdateWindow(WindowHandle);
@@ -871,7 +873,6 @@ int CALLBACK WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
 		GameInput Input[2] = {};
 		GameInput* OldInput = &Input[0];
 		GameInput* NewInput = &Input[1];
-		NewInput->TargetSecondsPerFrame = TargetSecondsPerFrame;
 
 #if 0
 		//Init graphics
@@ -887,6 +888,7 @@ int CALLBACK WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
 		Win32IsRunning = true;
 		while (Win32IsRunning)
 		{
+			NewInput->TargetSecondsPerFrame = TargetSecondsPerFrame;
 			FILETIME SourceDLLWriteTime = Win32GetLastWriteTime(SourceGameDLLFullPath);
 			if(CompareFileTime(&GameCode.LastWriteTime, &SourceDLLWriteTime) != 0)
 			{
@@ -1006,6 +1008,7 @@ int CALLBACK WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
 				Win32PlaybackInput(&Win32_State, NewInput);
 			}
 
+			
 			if(GameCode.GameUpdate && GameCode.GameGenerateAudio)
 			{
 				GameCode.GameUpdate(&Thread, &Memory, &GameRenderBuffer, NewInput, &GameAudio);
@@ -1015,11 +1018,11 @@ int CALLBACK WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
 			Win32UpdateWindow(&GlobalBackBuffer, DeviceContext);
 			ReleaseDC(WindowHandle, DeviceContext);
 
-
 			//Swap input states to always get latest state
 			GameInput* temp = NewInput;
 			NewInput = OldInput;
 			OldInput = temp;
+
 
 			/*
 			Performance Calculation

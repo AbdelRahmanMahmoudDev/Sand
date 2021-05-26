@@ -8,39 +8,63 @@ internal i32 Roundf32Toi32(f32 value)
 	return Result;
 }
 
-internal void DrawRectangle(GameBackBuffer* Buffer, f32 MinX, f32 MaxX, f32 MinY, f32 MaxY, u32 Color)
+internal u32 Roundf32Tou32(f32 value)
 {
-	i32 iMinX = Roundf32Toi32(MinX);
-	i32 iMaxX = Roundf32Toi32(MaxX);
-	i32 iMinY = Roundf32Toi32(MinY);
-	i32 iMaxY = Roundf32Toi32(MaxY);
+	u32 Result = (u32)(value + 0.5f);
+	return Result;
+}
 
-	if(iMinX < 0)
+internal void DrawRectangle(GameBackBuffer* Buffer, f32 MinX, f32 MinY, f32 MaxX, f32 MaxY, 
+f32 Red, f32 Green, f32 Blue)
+{
+	i32 IntegerMinX = Roundf32Toi32(MinX);
+	i32 IntegerMinY = Roundf32Toi32(MinY);
+	i32 IntegerMaxX = Roundf32Toi32(MaxX);
+	i32 IntegerMaxY = Roundf32Toi32(MaxY);
+	
+	if(IntegerMinX < 0)
 	{
-		iMinX = 0;
+		IntegerMinX = 0;
 	}
 
-	if(iMaxX > Buffer->BitmapWidth)
+	if(IntegerMinY < 0)
 	{
-		iMaxX = Buffer->BitmapWidth;
+		IntegerMinY = 0;
 	}
 
-	if(iMinY < 0)
+	if(IntegerMaxX > Buffer->BitmapWidth)
 	{
-		iMinY = 0;
+		IntegerMaxX = Buffer->BitmapWidth;
 	}
 
-	if(iMaxY > Buffer->BitmapHeight)
+	if(IntegerMaxY > Buffer->BitmapHeight)
 	{
-		iMaxY = Buffer->BitmapHeight;	
+		IntegerMaxY = Buffer->BitmapHeight;	
 	}
 
+	/*
+	AA RR GG BB
+	Alpha is 24 bits to the left (not used)
+	Red is 16 bits to the left
+	Green is 8 bits to the left
+	Blue is 0 bits to the left
+	*/
+    u32 Color = ((Roundf32Tou32(Red * 255.0f) << 16) |
+                (Roundf32Tou32(Green * 255.0f) << 8) |
+                (Roundf32Tou32(Blue * 255.0f) << 0));
 
-	u8* Row = (u8*)Buffer->BitmapMemory + (iMinY * Buffer->Pitch) + (iMinX * Buffer->BytesPerPixel);
-	for(i32 Y = 0; Y < iMaxY; ++Y)
+	u8* Row = ((u8*)Buffer->BitmapMemory) +
+	 		  (IntegerMinY * Buffer->Pitch) +
+	          (IntegerMinX * Buffer->BytesPerPixel);
+
+	for(i32 Y = IntegerMinY;
+	 Y < IntegerMaxY;
+	 ++Y)
 	{
 		u32* Pixel = (u32*)Row;
-		for(i32 X = 0; X < iMaxX; ++X)
+		for(i32 X = IntegerMinX;
+		 X < IntegerMaxX;
+		 ++X)
 		{
 			*Pixel++ = Color;
 		}
@@ -76,6 +100,11 @@ extern "C" GAME_UPDATE(GameUpdate)
 	{
 		//Placeholder thread thing
 		ThreadContext thread = {};
+
+		//State
+		State->PlayerX = 25;
+		State->PlayerY = 25;
+
 		Memory->IsInitialized = true;
 		int foo;
 	}
@@ -91,32 +120,35 @@ extern "C" GAME_UPDATE(GameUpdate)
 		else
 		{
 			//Digital processing
+			f32 dPlayerX = 0.0f;
+			f32 dPlayerY = 0.0f;
 			if(Controller0->DPadUp.EndedPress)
 			{
-				--State->GreenOffset;
+				dPlayerY = -1.0f;
 			}
 
-			else if(Controller0->DPadLeft.EndedPress)
+			if(Controller0->DPadDown.EndedPress)
 			{
-				--State->BlueOffset;
+				dPlayerY = 1.0f;
 			}
 
-			else if(Controller0->DPadRight.EndedPress)
+			if(Controller0->DPadLeft.EndedPress)
 			{
-				++State->BlueOffset;
+				dPlayerX = -1.0f;
 			}
 
-			else if(Controller0->DPadDown.EndedPress)
+			if(Controller0->DPadRight.EndedPress)
 			{
-				++State->GreenOffset;
+				dPlayerX = 1.0f;
 			}
+			dPlayerX *= 64.0f;
+			dPlayerY *= 64.0f;
+
+			State->PlayerX += Input->TargetSecondsPerFrame*dPlayerX;
+			State->PlayerY += Input->TargetSecondsPerFrame*dPlayerY;
 		}
 	}
 
-	if(Input->MouseButtons[0].EndedPress)
-	{
-		--State->BlueOffset;
-	}
 	//Audio
 	if(!SoundOutput->IsBufferFilled)
 	{
@@ -125,13 +157,62 @@ extern "C" GAME_UPDATE(GameUpdate)
 		SoundOutput->IsBufferFilled = true;
 	}
 
-	//Graphics
+	//Render
+    DrawRectangle(BackBuffer, 0.0f, 0.0f, (f32)BackBuffer->BitmapWidth, (f32)BackBuffer->BitmapHeight,
+                  0.0f, 0.0f, 0.0f);
 
-	DrawRectangle(BackBuffer, 0.0f, (f32)BackBuffer->BitmapWidth,
-				  0.0f, (f32)BackBuffer->BitmapHeight, 0x00FF00FF);
-				  
-	DrawRectangle(BackBuffer, 10.0f, 10.0f,
-				  10.0f, 20.0f, 0xFFFFFFFF);
+	// 9 rows, 16 columns
+	u32 TileMap[9][17] = 
+	{
+		{1, 1, 1, 1,  1, 1, 1, 1,  0, 1, 1, 1,  1, 1, 1, 1, 1},
+        {1, 1, 0, 0,  0, 1, 0, 0,  0, 0, 0, 0,  0, 1, 0, 0, 1},
+        {1, 1, 0, 0,  0, 0, 0, 0,  1, 0, 0, 0,  0, 0, 1, 0, 1},
+        {1, 0, 0, 0,  0, 0, 0, 0,  1, 0, 0, 0,  0, 0, 0, 0, 1},
+        {0, 0, 0, 0,  0, 1, 0, 0,  1, 0, 0, 0,  0, 0, 0, 0, 1},
+        {1, 1, 0, 0,  0, 1, 0, 0,  1, 0, 0, 0,  0, 1, 0, 0, 1},
+        {1, 0, 0, 0,  0, 1, 0, 0,  1, 0, 0, 0,  1, 0, 0, 0, 1},
+        {1, 1, 1, 1,  1, 0, 0, 0,  0, 0, 0, 0,  0, 1, 0, 0, 1},
+        {1, 1, 1, 1,  1, 1, 1, 1,  0, 1, 1, 1,  1, 1, 1, 1, 1},
+	};
+
+	f32 UpperLeftX = 10;
+    f32 UpperLeftY = 10;
+    f32 TileWidth = 60;
+    f32 TileHeight = 60;
+
+    for(i32 Row = 0;
+        Row < 9;
+        ++Row)
+    {
+        for(i32 Column = 0;
+            Column < 17;
+            ++Column)
+        {
+            u32 TileID = TileMap[Row][Column];
+            f32 Gray = 0.5f;
+            if(TileID == 1)
+            {
+                Gray = 1.0f;
+            }
+
+ 			f32 MinX = UpperLeftX + ((f32)Column)*TileWidth;
+            f32 MinY = UpperLeftY + ((f32)Row)*TileHeight;
+            f32 MaxX = MinX + TileWidth;
+            f32 MaxY = MinY + TileHeight;
+            DrawRectangle(BackBuffer, MinX, MinY, MaxX, MaxY, Gray, Gray, Gray);
+        }
+    }
+
+	f32 PlayerR = 0.3f;
+	f32 PlayerG = 0.5f;
+	f32 PlayerB = 0.2f;
+	f32 PlayerLeft = State->PlayerX;  
+	f32 PlayerTop = State->PlayerY;  
+	f32 PlayerWidth = 0.25f * TileWidth;
+	f32 PlayerHeight = TileHeight;
+	DrawRectangle(BackBuffer, PlayerLeft,
+	 PlayerTop, PlayerLeft + PlayerWidth, PlayerTop + PlayerHeight,
+	 PlayerR, PlayerG, PlayerB);
 }
 
 /*

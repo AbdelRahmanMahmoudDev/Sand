@@ -103,8 +103,6 @@ struct ThreadContext
 {
 	i32 Placeholder;
 };
- 
-#ifdef SAND_INTERNAL
 
 #define DEBUG_PLATFORM_READ_ENTIRE_FILE(name) DebugPlatformReadFileResult name(ThreadContext* Thread, char* FileName)
 typedef DEBUG_PLATFORM_READ_ENTIRE_FILE(debug_platform_read_entire_file);
@@ -114,8 +112,6 @@ typedef DEBUG_PLATFORM_WRITE_ENTIRE_FILE(debug_platform_write_entire_file);
 
 #define DEBUG_PLATFORM_FREE_FILE_MEMORY(name) void name(ThreadContext* Thread, void* FreeableMemory)
 typedef DEBUG_PLATFORM_FREE_FILE_MEMORY(debug_platform_free_file_memory);
-
-#endif
 
 /*
 Permanent Storage is data that persists between frames
@@ -140,8 +136,8 @@ struct GameMemory
 //for now, this is a dummy structure that saves state that persists between frames
 struct GameState
 {
-	i32 BlueOffset;
-	i32 GreenOffset;
+	f32 PlayerX;
+	f32 PlayerY;
 };
 
 
