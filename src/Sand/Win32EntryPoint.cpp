@@ -691,10 +691,18 @@ internal void Win32ResizeDIBSection(Win32BackBuffer* BackBuffer, i32 width, i32 
 }
 
 //update device-independent bitmap
-internal void Win32UpdateWindow(Win32BackBuffer* BackBuffer, HDC DeviceContext)
+internal void Win32UpdateWindow(Win32BackBuffer* BackBuffer, HDC DeviceContext,
+								i32 WindowWidth, i32 WindowHeight)
 {
+	i32 XOffset = 10;
+	i32 YOffset = 10;
+	PatBlt(DeviceContext, 0, 0, WindowWidth, YOffset, BLACKNESS);
+	PatBlt(DeviceContext, 0, 0, XOffset, WindowHeight, BLACKNESS);
+	PatBlt(DeviceContext, XOffset + BackBuffer->BitmapWidth, 0, WindowWidth, WindowHeight, BLACKNESS);
+	PatBlt(DeviceContext, 0, YOffset + BackBuffer->BitmapHeight, WindowWidth, WindowHeight, BLACKNESS);
+
     StretchDIBits(DeviceContext,
-                  0, 0, BackBuffer->BitmapWidth, BackBuffer->BitmapHeight,
+                  XOffset, YOffset, BackBuffer->BitmapWidth, BackBuffer->BitmapHeight,
                   0, 0, BackBuffer->BitmapWidth, BackBuffer->BitmapHeight,
                   BackBuffer->BitmapMemory,
                   &BackBuffer->BitmapInfo,
@@ -709,10 +717,11 @@ LRESULT CALLBACK WindowsCallBack(HWND handle, UINT msg, WPARAM wParam, LPARAM lP
 	{	
 	case WM_PAINT:
 	{
-            PAINTSTRUCT Paint;
-            HDC DeviceContext = BeginPaint(handle, &Paint);
-            Win32UpdateWindow(&GlobalBackBuffer, DeviceContext);
-            EndPaint(handle, &Paint);
+		Win32WindowDimensions Dims = Win32GetWindowDimensions(handle);
+        PAINTSTRUCT Paint;
+        HDC DeviceContext = BeginPaint(handle, &Paint);
+        Win32UpdateWindow(&GlobalBackBuffer, DeviceContext, Dims.Width, Dims.Height);
+        EndPaint(handle, &Paint);
 	}break;	
 
 	case WM_ACTIVATEAPP:
@@ -1014,8 +1023,9 @@ int CALLBACK WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
 				GameCode.GameUpdate(&Thread, &Memory, &GameRenderBuffer, NewInput, &GameAudio);
 			}
 
+			Win32WindowDimensions Dims = Win32GetWindowDimensions(WindowHandle);
 			HDC DeviceContext = GetDC(WindowHandle);
-			Win32UpdateWindow(&GlobalBackBuffer, DeviceContext);
+			Win32UpdateWindow(&GlobalBackBuffer, DeviceContext, Dims.Width, Dims.Height);
 			ReleaseDC(WindowHandle, DeviceContext);
 
 			//Swap input states to always get latest state

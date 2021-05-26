@@ -133,6 +133,12 @@ struct GameMemory
 	debug_platform_free_file_memory* DebugPlatformFreeFileMemory;
 };
 
+#define GAME_GENERATE_AUDIO(name) void name(ThreadContext* Thread, GameSoundOutput* SoundOutput)
+typedef GAME_GENERATE_AUDIO(game_generate_audio);
+
+#define GAME_UPDATE(name) void name(ThreadContext* Thread, GameMemory* Memory, GameBackBuffer* BackBuffer, GameInput* Input, GameSoundOutput* SoundOutput)
+typedef GAME_UPDATE(game_update);
+
 //for now, this is a dummy structure that saves state that persists between frames
 struct GameState
 {
@@ -140,17 +146,16 @@ struct GameState
 	f32 PlayerY;
 };
 
-
-struct OpenGLRendererState
+struct TileMap
 {
-	b32 IsRendererPrepared;
-	u32 ShaderProgram;
-	u32 VertexArrayHandle;
+	f32 UpperLeftX;
+	f32 UpperLeftY;
+
+	f32 TileWidth;
+	f32 TileHeight;
+
+	i32 WidthCount;
+	i32 HeightCount;
+
+	u32* Data;
 };
-
-
-#define GAME_GENERATE_AUDIO(name) void name(ThreadContext* Thread, GameSoundOutput* SoundOutput)
-typedef GAME_GENERATE_AUDIO(game_generate_audio);
-
-#define GAME_UPDATE(name) void name(ThreadContext* Thread, GameMemory* Memory, GameBackBuffer* BackBuffer, GameInput* Input, GameSoundOutput* SoundOutput)
-typedef GAME_UPDATE(game_update);
