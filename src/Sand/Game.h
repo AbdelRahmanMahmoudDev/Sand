@@ -31,44 +31,44 @@ struct GameController
 {
 	b32 IsConnected;
 	b32 IsAnalog;
-
+    
 	//Left stick
 	f32 LeftStickAverageX;
 	f32 LeftStickAverageY;
-
+    
 	//Right stick
 	f32 RightStickAverageX;
 	f32 RightStickAverageY;
-
+    
 	//Left Trigger
 	f32 LeftTriggerAverage;
-
+    
 	//Right Trigger
 	f32 RightTriggerAverage;
-
+    
 	union
 	{
 		GameButtonState Buttons[14];
 		struct 
 		{
-		GameButtonState DPadUp;
-		GameButtonState DPadDown;
-		GameButtonState DPadLeft;
-		GameButtonState DPadRight;
-
-		GameButtonState A;
-		GameButtonState B;
-		GameButtonState X;
-		GameButtonState Y;
-
-		GameButtonState Start;
-		GameButtonState Back;
-
-		GameButtonState LeftShoulder;
-		GameButtonState RightShoulder;
-
-		GameButtonState LeftThumb;
-		GameButtonState RightThumb;
+            GameButtonState DPadUp;
+            GameButtonState DPadDown;
+            GameButtonState DPadLeft;
+            GameButtonState DPadRight;
+            
+            GameButtonState A;
+            GameButtonState B;
+            GameButtonState X;
+            GameButtonState Y;
+            
+            GameButtonState Start;
+            GameButtonState Back;
+            
+            GameButtonState LeftShoulder;
+            GameButtonState RightShoulder;
+            
+            GameButtonState LeftThumb;
+            GameButtonState RightThumb;
 		};
 	};
 };
@@ -77,7 +77,7 @@ struct GameInput
 {
 	//timestep
 	f32 TargetSecondsPerFrame;
-
+    
 	//debug mouse stuff
 	GameButtonState MouseButtons[5];
 	i32 MouseX, MouseY, MouseZ;
@@ -88,7 +88,7 @@ struct GameInput
 GameController* GetController(GameInput* Input, u32 ControllerIndex)
 {
 	Assert(ControllerIndex < ArrayCount(Input->Controllers));
-
+    
 	GameController* Result = &Input->Controllers[ControllerIndex]; 
 	return Result;
 }
@@ -124,10 +124,10 @@ struct GameMemory
 	b32 IsInitialized;
 	u64 PermanentStorageSize;
 	void* PermanentStorage;
-
+    
 	u64 TransientStorageSize;
 	void* TransientStorage;
-
+    
 	debug_platform_read_entire_file* DebugPlatformReadEntireFile;
 	debug_platform_write_entire_file* DebugPlatformWriteEntireFile;
 	debug_platform_free_file_memory* DebugPlatformFreeFileMemory;
@@ -148,14 +148,19 @@ struct GameState
 
 struct TileMap
 {
-	f32 UpperLeftX;
-	f32 UpperLeftY;
+	u32* Data;
+};
 
+struct World
+{
+    f32 UpperLeftX;
+	f32 UpperLeftY;
+    
 	f32 TileWidth;
 	f32 TileHeight;
-
+    
 	i32 WidthCount;
 	i32 HeightCount;
-
-	u32* Data;
+    
+    TileMap *TileMaps;
 };

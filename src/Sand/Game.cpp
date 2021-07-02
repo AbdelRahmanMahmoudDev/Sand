@@ -21,7 +21,7 @@ internal u32 Roundf32Tou32(f32 value)
 }
 
 internal void DrawRectangle(GameBackBuffer* Buffer, f32 MinX, f32 MinY, f32 MaxX, f32 MaxY, 
-f32 Red, f32 Green, f32 Blue)
+                            f32 Red, f32 Green, f32 Blue)
 {
 	i32 IntegerMinX = Roundf32Toi32(MinX);
 	i32 IntegerMinY = Roundf32Toi32(MinY);
@@ -32,22 +32,22 @@ f32 Red, f32 Green, f32 Blue)
 	{
 		IntegerMinX = 0;
 	}
-
+    
 	if(IntegerMinY < 0)
 	{
 		IntegerMinY = 0;
 	}
-
+    
 	if(IntegerMaxX > Buffer->BitmapWidth)
 	{
 		IntegerMaxX = Buffer->BitmapWidth;
 	}
-
+    
 	if(IntegerMaxY > Buffer->BitmapHeight)
 	{
 		IntegerMaxY = Buffer->BitmapHeight;	
 	}
-
+    
 	/*
 	AA RR GG BB
 	Alpha is 24 bits to the left (not used)
@@ -56,21 +56,21 @@ f32 Red, f32 Green, f32 Blue)
 	Blue is 0 bits to the left
 	*/
     u32 Color = ((Roundf32Tou32(Red * 255.0f) << 16) |
-                (Roundf32Tou32(Green * 255.0f) << 8) |
-                (Roundf32Tou32(Blue * 255.0f) << 0));
-
+                 (Roundf32Tou32(Green * 255.0f) << 8) |
+                 (Roundf32Tou32(Blue * 255.0f) << 0));
+    
 	u8* Row = ((u8*)Buffer->BitmapMemory) +
-	 		  (IntegerMinY * Buffer->Pitch) +
-	          (IntegerMinX * Buffer->BytesPerPixel);
-
+    (IntegerMinY * Buffer->Pitch) +
+    (IntegerMinX * Buffer->BytesPerPixel);
+    
 	for(i32 Y = IntegerMinY;
-	 Y < IntegerMaxY;
-	 ++Y)
+        Y < IntegerMaxY;
+        ++Y)
 	{
 		u32* Pixel = (u32*)Row;
 		for(i32 X = IntegerMinX;
-		 X < IntegerMaxX;
-		 ++X)
+            X < IntegerMaxX;
+            ++X)
 		{
 			*Pixel++ = Color;
 		}
@@ -89,27 +89,27 @@ extern "C" GAME_GENERATE_AUDIO(GameGenerateAudio)
 	double t = (2 * Pi * frequency) / (SoundOutput->SamplesPerSecond * SoundOutput->NumberOfChannels); //wave phase
 	for(i32 sampleIndex = 0; sampleIndex < SoundOutput->SoundBufferSize; ++sampleIndex)
 	{
-	#if 0
+#if 0
 		SoundOutput->SoundData[sampleIndex] = (u8)copysign(1.0, (amplitude * sin(t * sampleIndex)));
 		SoundOutput->SoundData[sampleIndex+1] = (u8)copysign(1.0, (amplitude * sin(t * sampleIndex)));
-	#else
+#else
 		SoundOutput->SoundData[sampleIndex] = 0;
-	#endif
+#endif
 	}
 }
 
-internal b32 IsPointEmpty(TileMap* tile_map, f32 PointX, f32 PointY)
+internal b32 IsPointEmpty(World *world, f32 PointX, f32 PointY)
 {
 	b32 Result = false;
-	i32 PlayerTileX = Truncatef32Toi32(((PointX - tile_map->UpperLeftX) / tile_map->TileWidth));
-	i32 PlayerTileY = Truncatef32Toi32(((PointY - tile_map->UpperLeftY) / tile_map->TileHeight));
-			
-	if((PlayerTileX >= 0) && (PlayerTileX <= tile_map->WidthCount) &&
-	   (PlayerTileY >= 0) && (PlayerTileY <= tile_map->HeightCount))
+	i32 PlayerTileX = Truncatef32Toi32(((PointX - world->UpperLeftX) / world->TileWidth));
+	i32 PlayerTileY = Truncatef32Toi32(((PointY - world->UpperLeftY) / world->TileHeight));
+    
+	if((PlayerTileX >= 0) && (PlayerTileX <= world->WidthCount) &&
+	   (PlayerTileY >= 0) && (PlayerTileY <= world->HeightCount))
 	{
-		Result = (tile_map->Data[(PlayerTileY * tile_map->WidthCount) + PlayerTileX] == 0);
+		Result = (world->TileMaps->Data[(PlayerTileY * world->WidthCount) + PlayerTileX] == 0);
 	}
-
+    
 	return Result;
 }
 
@@ -122,53 +122,100 @@ extern "C" GAME_UPDATE(GameUpdate)
 	{
 		//Placeholder thread thing
 		ThreadContext thread = {};
-
+        
 		//State
 		State->PlayerX = 150;
 		State->PlayerY = 150;
-
+        
 		Memory->IsInitialized = true;
 	}
-
+    
 #define TILE_WIDTH_COUNT 16
 #define TILE_HEIGHT_COUNT 9
-
+    
 	// 9 rows, 16 columns
-	u32 TileMap0[TILE_HEIGHT_COUNT][TILE_WIDTH_COUNT] = 
+	u32 TileMap00[TILE_HEIGHT_COUNT][TILE_WIDTH_COUNT] = 
 	{
-		{1, 1, 1, 1,  1, 1, 1, 1,  0, 1, 1, 1,  1, 1, 1, 1},
+		{1, 1, 1, 1,  1, 1, 1, 1,  1, 1, 1, 1,  1, 1, 1, 1},
         {1, 1, 0, 0,  0, 1, 0, 0,  0, 0, 0, 0,  0, 1, 0, 1},
         {1, 1, 0, 0,  0, 0, 0, 0,  1, 0, 0, 0,  0, 0, 1, 1},
         {1, 0, 0, 0,  0, 0, 0, 0,  1, 0, 0, 0,  0, 0, 0, 1},
-        {0, 0, 0, 0,  0, 1, 0, 0,  1, 0, 0, 0,  0, 0, 0, 0},
+        {1, 0, 0, 0,  0, 1, 0, 0,  1, 0, 0, 0,  0, 0, 0, 0},
+        {1, 1, 0, 0,  0, 1, 0, 0,  1, 0, 0, 0,  0, 1, 0, 1},
+        {1, 0, 0, 0,  0, 1, 0, 0,  1, 0, 0, 0,  1, 0, 0, 1},
+        {1, 1, 1, 1,  1, 0, 0, 0,  0, 0, 0, 0,  0, 1, 0, 1},
+        {1, 1, 1, 1,  1, 1, 1, 1,  1, 1, 1, 1,  1, 1, 1, 1},
+	};
+    
+    u32 TileMap01[TILE_HEIGHT_COUNT][TILE_WIDTH_COUNT] = 
+	{
+		{1, 1, 1, 1,  1, 1, 1, 1,  1, 1, 1, 1,  1, 1, 1, 1},
+        {1, 1, 0, 0,  0, 1, 0, 0,  0, 0, 0, 0,  0, 1, 0, 1},
+        {1, 1, 0, 0,  0, 0, 0, 0,  1, 0, 0, 0,  0, 0, 1, 1},
+        {1, 0, 0, 0,  0, 0, 0, 0,  1, 0, 0, 0,  0, 0, 0, 1},
+        {1, 0, 0, 0,  0, 1, 0, 0,  1, 0, 0, 0,  0, 0, 0, 1},
         {1, 1, 0, 0,  0, 1, 0, 0,  1, 0, 0, 0,  0, 1, 0, 1},
         {1, 0, 0, 0,  0, 1, 0, 0,  1, 0, 0, 0,  1, 0, 0, 1},
         {1, 1, 1, 1,  1, 0, 0, 0,  0, 0, 0, 0,  0, 1, 0, 1},
         {1, 1, 1, 1,  1, 1, 1, 1,  0, 1, 1, 1,  1, 1, 1, 1},
 	};
-
-	f32 UpperLeftX = 10;
-    f32 UpperLeftY = 10;
-    f32 TileWidth = 60;
-    f32 TileHeight = 60;
-
-	TileMap MainTileMap = {};
-	MainTileMap.HeightCount = TILE_HEIGHT_COUNT;
-	MainTileMap.WidthCount = TILE_WIDTH_COUNT;
-	MainTileMap.TileWidth = TileWidth;
-	MainTileMap.TileHeight = TileHeight;
-	MainTileMap.UpperLeftX = UpperLeftX;
-	MainTileMap.UpperLeftY = UpperLeftY;
-	MainTileMap.Data = (u32*)TileMap0;
-
+    
+    u32 TileMap11[TILE_HEIGHT_COUNT][TILE_WIDTH_COUNT] = 
+	{
+		{1, 1, 1, 1,  1, 1, 1, 1,  1, 1, 1, 1,  1, 1, 1, 1},
+        {1, 1, 0, 0,  0, 1, 0, 0,  0, 0, 0, 0,  0, 1, 0, 1},
+        {1, 1, 0, 0,  0, 0, 0, 0,  1, 0, 0, 0,  0, 0, 1, 1},
+        {1, 0, 0, 0,  0, 0, 0, 0,  1, 0, 0, 0,  0, 0, 0, 1},
+        {0, 0, 0, 0,  0, 1, 0, 0,  1, 0, 0, 0,  0, 0, 0, 1},
+        {1, 1, 0, 0,  0, 1, 0, 0,  1, 0, 0, 0,  0, 1, 0, 1},
+        {1, 0, 0, 0,  0, 1, 0, 0,  1, 0, 0, 0,  1, 0, 0, 1},
+        {1, 1, 1, 1,  1, 0, 0, 0,  0, 0, 0, 0,  0, 1, 0, 1},
+        {1, 1, 1, 1,  1, 1, 1, 1,  1, 1, 1, 1,  1, 1, 1, 1},
+	};
+    
+    u32 TileMap10[TILE_HEIGHT_COUNT][TILE_WIDTH_COUNT] = 
+	{
+		{1, 1, 1, 1,  1, 1, 1, 1,  0, 1, 1, 1,  1, 1, 1, 1},
+        {1, 1, 0, 0,  0, 1, 0, 0,  0, 0, 0, 0,  0, 1, 0, 1},
+        {1, 1, 0, 0,  0, 0, 0, 0,  1, 0, 0, 0,  0, 0, 1, 1},
+        {1, 0, 0, 0,  0, 0, 0, 0,  1, 0, 0, 0,  0, 0, 0, 1},
+        {1, 0, 0, 0,  0, 1, 0, 0,  1, 0, 0, 0,  0, 0, 0, 1},
+        {1, 1, 0, 0,  0, 1, 0, 0,  1, 0, 0, 0,  0, 1, 0, 1},
+        {1, 0, 0, 0,  0, 1, 0, 0,  1, 0, 0, 0,  1, 0, 0, 1},
+        {1, 1, 1, 1,  1, 0, 0, 0,  0, 0, 0, 0,  0, 1, 0, 1},
+        {1, 1, 1, 1,  1, 1, 1, 1,  1, 1, 1, 1,  1, 1, 1, 1},
+	};
+    
+    
+#define UPPER_LEFT_X  10
+#define UPPER_LEFT_Y 10
+#define TILE_WIDTH  60
+#define TILE_HEIGHT  60
+    
+	TileMap TileMaps[2][2] = {};
+    
+    TileMaps[0][0].Data = (u32*)TileMap00;
+    TileMaps[0][1].Data = (u32*)TileMap01;
+    TileMaps[1][1].Data = (u32*)TileMap11;
+    TileMaps[1][0].Data = (u32*)TileMap10;
+    
+    World world = {};
+	world.HeightCount = TILE_HEIGHT_COUNT;
+	world.WidthCount = TILE_WIDTH_COUNT;
+	world.TileWidth =  TILE_WIDTH;
+	world.TileHeight =  TILE_HEIGHT;
+	world.UpperLeftX = UPPER_LEFT_X;
+	world.UpperLeftY = UPPER_LEFT_Y;
+	world.TileMaps = (TileMap*)TileMaps;
+    
 	f32 PlayerR = 0.3f;
 	f32 PlayerG = 0.5f;
 	f32 PlayerB = 0.2f;
 	f32 PlayerLeft = State->PlayerX;  
 	f32 PlayerTop = State->PlayerY;  
-	f32 PlayerWidth = 0.25f * TileWidth;
-	f32 PlayerHeight = TileHeight;
-
+	f32 PlayerWidth = 0.25f * TILE_WIDTH;
+	f32 PlayerHeight = TILE_HEIGHT;
+    
 	//Input
 	for(u32 ControllerIndex = 0; ControllerIndex < ArrayCount(Input->Controllers); ++ControllerIndex)
 	{
@@ -186,36 +233,36 @@ extern "C" GAME_UPDATE(GameUpdate)
 			{
 				dPlayerY = -1.0f;
 			}
-
+            
 			if(Controller0->DPadDown.EndedPress)
 			{
 				dPlayerY = 1.0f;
 			}
-
+            
 			if(Controller0->DPadLeft.EndedPress)
 			{
 				dPlayerX = -1.0f;
 			}
-
+            
 			if(Controller0->DPadRight.EndedPress)
 			{
 				dPlayerX = 1.0f;
 			}
 			dPlayerX *= 64.0f;
 			dPlayerY *= 64.0f;
-
+            
 			f32 NewPlayerX = State->PlayerX + Input->TargetSecondsPerFrame*dPlayerX;
 			f32 NewPlayerY = State->PlayerY + Input->TargetSecondsPerFrame*dPlayerY;
-
-			if(IsPointEmpty(&MainTileMap, NewPlayerX, NewPlayerY + PlayerHeight) &&
-			  IsPointEmpty(&MainTileMap, NewPlayerX + PlayerWidth, NewPlayerY + PlayerHeight))
+            
+			if(IsPointEmpty(&world, NewPlayerX, NewPlayerY + PlayerHeight) &&
+               IsPointEmpty(&world, NewPlayerX + PlayerWidth, NewPlayerY + PlayerHeight))
 			{
 				State->PlayerX = NewPlayerX;
 				State->PlayerY = NewPlayerY;
 			}
 		}
 	}
-
+    
 	//Audio
 	if(!SoundOutput->IsBufferFilled)
 	{
@@ -223,13 +270,13 @@ extern "C" GAME_UPDATE(GameUpdate)
 		GameGenerateAudio(&thread, SoundOutput);
 		SoundOutput->IsBufferFilled = true;
 	}
-
+    
 	//Render
     DrawRectangle(BackBuffer, 0.0f, 0.0f, (f32)BackBuffer->BitmapWidth, (f32)BackBuffer->BitmapHeight,
                   0.0f, 0.0f, 0.0f);
-
-
-
+    
+    
+    
     for(i32 Row = 0;
         Row < 9;
         ++Row)
@@ -238,24 +285,24 @@ extern "C" GAME_UPDATE(GameUpdate)
             Column < 17;
             ++Column)
         {
-            u32 TileID = TileMap0[Row][Column];
+            u32 TileID = TileMap00[Row][Column];
             f32 Gray = 0.5f;
             if(TileID == 1)
             {
                 Gray = 1.0f;
             }
-
- 			f32 MinX = UpperLeftX + ((f32)Column)*TileWidth;
-            f32 MinY = UpperLeftY + ((f32)Row)*TileHeight;
-            f32 MaxX = MinX + TileWidth;
-            f32 MaxY = MinY + TileHeight;
+            
+            f32 MinX = UPPER_LEFT_X + ((f32)Column)*TILE_WIDTH;
+            f32 MinY = UPPER_LEFT_Y + ((f32)Row)*TILE_HEIGHT;
+            f32 MaxX = MinX + TILE_WIDTH;
+            f32 MaxY = MinY + TILE_HEIGHT;
             DrawRectangle(BackBuffer, MinX, MinY, MaxX, MaxY, Gray, Gray, Gray);
         }
     }
-
+    
 	DrawRectangle(BackBuffer, PlayerLeft,
-	 PlayerTop, PlayerLeft + PlayerWidth, PlayerTop + PlayerHeight,
-	 PlayerR, PlayerG, PlayerB);
+                  PlayerTop, PlayerLeft + PlayerWidth, PlayerTop + PlayerHeight,
+                  PlayerR, PlayerG, PlayerB);
 }
 
 /*
