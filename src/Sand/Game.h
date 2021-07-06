@@ -139,13 +139,6 @@ typedef GAME_GENERATE_AUDIO(game_generate_audio);
 #define GAME_UPDATE(name) void name(ThreadContext* Thread, GameMemory* Memory, GameBackBuffer* BackBuffer, GameInput* Input, GameSoundOutput* SoundOutput)
 typedef GAME_UPDATE(game_update);
 
-//for now, this is a dummy structure that saves state that persists between frames
-struct GameState
-{
-	f32 PlayerX;
-	f32 PlayerY;
-};
-
 struct TileMap
 {
 	u32* Data;
@@ -153,6 +146,13 @@ struct TileMap
 
 struct World
 {
+	f32 TileWidthInMeters;
+	f32 TileWidthInPixels;
+	f32 MetersToPixels;
+
+	i32 TileMapCountX;
+	i32 TileMapCountY;
+
     f32 UpperLeftX;
 	f32 UpperLeftY;
     
@@ -163,4 +163,25 @@ struct World
 	i32 HeightCount;
     
     TileMap *TileMaps;
+};
+
+struct CanonicalPosition
+{
+	//Casey says these will be packed into a single i32 with
+	//some low bits representing the tile index
+	//and the high bits representing the tile page
+	i32 TileMapX;
+	i32 TileMapY;
+
+	i32 TileX;
+	i32 TileY;
+
+	f32 TileRelativeX;
+	f32 TileRelativeY;
+};
+
+//for now, this is a dummy structure that saves state that persists between frames
+struct GameState
+{
+	CanonicalPosition PlayerPos;
 };
